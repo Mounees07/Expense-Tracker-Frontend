@@ -156,7 +156,7 @@ export const ExpenseProvider = ({ children }) => {
       console.error(err);
       toast.error('PDF Export failed');
     }
-  }, [filters]);
+  }, [filters, summary]);
 
   return (
     <ExpenseContext.Provider value={{
