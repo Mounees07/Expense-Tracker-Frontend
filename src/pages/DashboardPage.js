@@ -148,20 +148,18 @@ const Analytics = () => {
 const DashboardPage = ({ darkMode, toggleDark }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
-  const handleMobileMenu = () => {
-    document.getElementById('mobile-menu-toggle')?.click();
-  };
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <div className="dashboard-layout" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       
       <main className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         <TopBar 
           darkMode={darkMode}
           toggleDark={toggleDark}
           activeTab={activeTab}
-          onMobileMenu={handleMobileMenu}
+          onMobileMenu={() => setMobileOpen(true)}
         />
 
         <div className="content-area" style={{ padding: '24px', paddingTop: 'calc(24px + var(--topbar-height))', flex: 1 }}>

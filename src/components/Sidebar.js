@@ -16,9 +16,8 @@ const navItems = [
   { id: 'analytics', icon: <FiPieChart />, label: 'Analytics' },
 ];
 
-const Sidebar = ({ activeTab, setActiveTab }) => {
+const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
   const { user, logout } = useAuth();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -80,15 +79,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
         </div>
       </aside>
 
-      {/* Mobile toggle stored on sidebar so it can be accessed by parent */}
-      <button
-        id="mobile-menu-toggle"
-        className="hamburger-btn"
-        onClick={() => setMobileOpen((o) => !o)}
-        style={{ display: 'none' }}
-      >
-        {mobileOpen ? <FiX /> : <FiMenu />}
-      </button>
+      {/* Mobile toggle removed, handled via props and DashboardPage */}
     </>
   );
 };
