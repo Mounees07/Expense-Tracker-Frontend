@@ -1026,7 +1026,7 @@ tbody td {
   .auth-card { padding: 24px; }
 
   .hamburger-btn {
-    display: flex;
+    display: flex !important;
   }
 
   .hidden-mobile {
