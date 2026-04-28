@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   FiGrid,
   FiPieChart,
   FiList,
   FiLogOut,
-  FiMenu,
-  FiX,
   FiDollarSign,
 } from 'react-icons/fi';
 
