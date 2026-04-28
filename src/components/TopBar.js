@@ -27,13 +27,12 @@ const TopBar = ({ darkMode, toggleDark, activeTab, onMobileMenu }) => {
           id="mobile-hamburger"
           className="hamburger-btn"
           onClick={onMobileMenu}
-          style={{ display: 'none' }}
         >
           <FiMenu size={22} />
         </button>
         <div className="topbar-left">
           <h1>{titleMap[activeTab] || 'Dashboard'}</h1>
-          <p>{subtitleMap[activeTab] || ''}</p>
+          <p className="hidden-mobile">{subtitleMap[activeTab] || ''}</p>
         </div>
       </div>
 
@@ -47,9 +46,10 @@ const TopBar = ({ darkMode, toggleDark, activeTab, onMobileMenu }) => {
           className="btn btn-secondary btn-sm"
           onClick={exportPDF}
           style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          title="Print / PDF"
         >
-          <FiPrinter size={14} />
-          Print / PDF
+          <FiPrinter size={16} />
+          <span className="hidden-mobile">Print / PDF</span>
         </button>
 
         <button
@@ -57,9 +57,10 @@ const TopBar = ({ darkMode, toggleDark, activeTab, onMobileMenu }) => {
           className="btn btn-secondary btn-sm"
           onClick={exportCSV}
           style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          title="Export CSV"
         >
-          <FiDownload size={14} />
-          Export CSV
+          <FiDownload size={16} />
+          <span className="hidden-mobile">Export CSV</span>
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
