@@ -3,9 +3,9 @@ import { FiSun, FiMoon, FiMenu, FiDownload, FiPrinter } from 'react-icons/fi';
 import { useExpenses } from '../context/ExpenseContext';
 
 const titleMap = {
-  overview: 'Dashboard Overview',
-  expenses: 'My Expenses',
-  analytics: 'Analytics & Reports',
+  overview: <>Dashboard <span className="hidden-mobile">Overview</span></>,
+  expenses: <><span className="hidden-mobile">My </span>Expenses</>,
+  analytics: <>Analytics <span className="hidden-mobile">& Reports</span></>,
 };
 
 const subtitleMap = {

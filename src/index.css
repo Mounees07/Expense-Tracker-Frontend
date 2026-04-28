@@ -1024,6 +1024,15 @@ tbody td {
     padding: 0 16px;
   }
 
+  .topbar-left h1 {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+
+  .topbar-right {
+    gap: 6px;
+  }
+
   .page-content { padding: 16px; }
 
   .charts-grid { grid-template-columns: 1fr; }
