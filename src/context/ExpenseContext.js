@@ -6,12 +6,38 @@ import autoTable from 'jspdf-autotable';
 
 const ExpenseContext = createContext(null);
 
+const getCurrentMonthFilters = () => {
+  const now = new Date();
+  return { month: now.getMonth() + 1, year: now.getFullYear() };
+};
+
+const cleanExportParams = (params) => {
+  const mergedParams = { ...params };
+  if (mergedParams.category === 'All') delete mergedParams.category;
+  if (!mergedParams.search) delete mergedParams.search;
+  if (!mergedParams.month) delete mergedParams.month;
+  if (!mergedParams.year) delete mergedParams.year;
+  if (!mergedParams.startDate) delete mergedParams.startDate;
+  if (!mergedParams.endDate) delete mergedParams.endDate;
+  if (!mergedParams.type) delete mergedParams.type;
+  return mergedParams;
+};
+
+const buildExportName = (prefix, params, extension) => {
+  const datePart = params.startDate && params.endDate
+    ? `${params.startDate}_to_${params.endDate}`
+    : params.month && params.year
+      ? `${params.year}-${String(params.month).padStart(2, '0')}`
+      : params.year || new Date().toISOString().slice(0, 10);
+  return `${prefix}_${datePart}.${extension}`;
+};
+
 export const ExpenseProvider = ({ children }) => {
   const [expenses, setExpenses] = useState([]);
   const [summary, setSummary] = useState({ totalAmount: 0, categoryBreakdown: {}, monthlyData: [], totalCount: 0 });
   const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1, limit: 10 });
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ category: 'All', search: '', month: '', year: new Date().getFullYear() });
+  const [filters, setFilters] = useState({ category: 'All', search: '', ...getCurrentMonthFilters() });
 
   const fetchExpenses = useCallback(async (params = {}) => {
     setLoading(true);
@@ -50,18 +76,15 @@ export const ExpenseProvider = ({ children }) => {
     toast.success('Expense deleted');
   }, []);
 
-  const exportCSV = useCallback(async () => {
+  const exportCSV = useCallback(async (params = {}) => {
     try {
-      const mergedParams = { ...filters };
-      if (mergedParams.category === 'All') delete mergedParams.category;
-      if (!mergedParams.search) delete mergedParams.search;
-      if (!mergedParams.month) delete mergedParams.month;
+      const mergedParams = cleanExportParams({ ...filters, ...params });
 
       const res = await expenseService.exportCSV(mergedParams);
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `expenses_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute('download', buildExportName('expenses', mergedParams, 'csv'));
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -71,12 +94,9 @@ export const ExpenseProvider = ({ children }) => {
     }
   }, [filters]);
 
-  const exportPDF = useCallback(async () => {
+  const exportPDF = useCallback(async (params = {}) => {
     try {
-      const mergedParams = { ...filters, limit: 100000, page: 1 };
-      if (mergedParams.category === 'All') delete mergedParams.category;
-      if (!mergedParams.search) delete mergedParams.search;
-      if (!mergedParams.month) delete mergedParams.month;
+      const mergedParams = cleanExportParams({ ...filters, ...params, limit: 100000, page: 1 });
 
       const res = await expenseService.getAll(mergedParams);
       const data = res.data.data;
@@ -150,7 +170,7 @@ export const ExpenseProvider = ({ children }) => {
         }
       });
 
-      doc.save(`financial_report_${new Date().toISOString().slice(0, 10)}.pdf`);
+      doc.save(buildExportName('financial_report', mergedParams, 'pdf'));
       toast.success('PDF Exported successfully!');
     } catch (err) {
       console.error(err);

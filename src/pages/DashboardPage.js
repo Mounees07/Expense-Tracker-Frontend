@@ -3,12 +3,16 @@ import Sidebar from '../components/Sidebar';
 import TopBar from '../components/TopBar';
 import SummaryCards from '../components/SummaryCards';
 import ExpenseTable from '../components/ExpenseTable';
+import MonthlyExpenseTarget from '../components/MonthlyExpenseTarget';
+import ResourceModule, { AdvancedAnalytics, InsightsPanel } from '../components/FinanceModules';
 import { useExpenses } from '../context/ExpenseContext';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
@@ -20,6 +24,8 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
@@ -167,6 +173,9 @@ const DashboardPage = ({ darkMode, toggleDark }) => {
             <div className="fade-in">
               <SummaryCards />
               <div style={{ marginTop: '24px' }}>
+                <MonthlyExpenseTarget />
+              </div>
+              <div style={{ marginTop: '24px' }}>
                 <ExpenseTable />
               </div>
             </div>
@@ -179,8 +188,20 @@ const DashboardPage = ({ darkMode, toggleDark }) => {
           {activeTab === 'analytics' && (
             <div className="fade-in">
               <Analytics />
+              <div style={{ marginTop: '24px' }}>
+                <AdvancedAnalytics />
+              </div>
             </div>
           )}
+          {activeTab === 'insights' && <div className="fade-in"><InsightsPanel /></div>}
+          {activeTab === 'accounts' && <div className="fade-in"><ResourceModule resource="accounts" /></div>}
+          {activeTab === 'budgets' && <div className="fade-in"><ResourceModule resource="budgets" /></div>}
+          {activeTab === 'goals' && <div className="fade-in"><ResourceModule resource="goals" /></div>}
+          {activeTab === 'bills' && <div className="fade-in"><ResourceModule resource="bills" /></div>}
+          {activeTab === 'recurring' && <div className="fade-in"><ResourceModule resource="recurring" /></div>}
+          {activeTab === 'receipts' && <div className="fade-in"><ResourceModule resource="receipts" /></div>}
+          {activeTab === 'reports' && <div className="fade-in"><ResourceModule resource="reports" /></div>}
+          {activeTab === 'notifications' && <div className="fade-in"><ResourceModule resource="notifications" /></div>}
         </div>
       </main>
     </div>

@@ -6,12 +6,30 @@ const titleMap = {
   overview: <>Dashboard <span className="hidden-mobile">Overview</span></>,
   expenses: <><span className="hidden-mobile">My </span>Expenses</>,
   analytics: <>Analytics <span className="hidden-mobile">& Reports</span></>,
+  insights: <>AI <span className="hidden-mobile">Finance </span>Assistant</>,
+  accounts: 'Accounts',
+  budgets: 'Budget Planning',
+  goals: 'Savings Goals',
+  bills: 'Bills & Reminders',
+  recurring: 'Recurring Transactions',
+  receipts: 'Receipt Management',
+  reports: 'Reports',
+  notifications: 'Notifications',
 };
 
 const subtitleMap = {
   overview: 'Track and manage your spending',
   expenses: 'All your expense records',
   analytics: 'Visual breakdown of your finances',
+  insights: 'Automatic insights and finance questions',
+  accounts: 'Track banks, wallets, cash and UPI',
+  budgets: 'Plan monthly and category-wise limits',
+  goals: 'Monitor targets and saving progress',
+  bills: 'Never miss due dates again',
+  recurring: 'Automate repeating payments',
+  receipts: 'Store image and PDF proof',
+  reports: 'Generate financial exports',
+  notifications: 'Budget, bill and goal alerts',
 };
 
 const TopBar = ({ darkMode, toggleDark, activeTab, onMobileMenu }) => {

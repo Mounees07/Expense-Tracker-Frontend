@@ -25,8 +25,17 @@ const PublicRoute = ({ children }) => {
 };
 
 const AppRoutes = () => {
+  const { user } = useAuth();
   const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem('darkMode') === 'true';
+    const savedTheme = localStorage.getItem('darkMode');
+    if (savedTheme !== null) return savedTheme === 'true';
+    const savedUser = localStorage.getItem('user');
+    if (!savedUser) return false;
+    try {
+      return JSON.parse(savedUser).themePreference === 'dark';
+    } catch {
+      return false;
+    }
   });
 
   useEffect(() => {
@@ -34,7 +43,21 @@ const AppRoutes = () => {
     localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
 
-  const toggleDark = () => setDarkMode((d) => !d);
+  useEffect(() => {
+    if (user?.themePreference) {
+      setDarkMode(user.themePreference === 'dark');
+    }
+  }, [user?.themePreference]);
+
+  const toggleDark = async () => {
+    setDarkMode((d) => {
+      const next = !d;
+      import('./services/api').then(({ authService }) => {
+        if (localStorage.getItem('token')) authService.updateTheme(next ? 'dark' : 'light').catch(() => {});
+      });
+      return next;
+    });
+  };
 
   return (
     <Routes>

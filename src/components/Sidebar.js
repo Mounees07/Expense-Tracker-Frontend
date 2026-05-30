@@ -5,13 +5,25 @@ import {
   FiPieChart,
   FiList,
   FiLogOut,
-  FiDollarSign,
+  FiBell,
+  FiFileText,
+  FiFlag,
+  FiTarget,
+  FiUpload,
+  FiZap,
 } from 'react-icons/fi';
+import LogoMark from './LogoMark';
 
 const navItems = [
   { id: 'overview', icon: <FiGrid />, label: 'Overview' },
   { id: 'expenses', icon: <FiList />, label: 'Expenses' },
   { id: 'analytics', icon: <FiPieChart />, label: 'Analytics' },
+  { id: 'insights', icon: <FiZap />, label: 'AI Assistant' },
+  { id: 'budgets', icon: <FiFlag />, label: 'Budgets' },
+  { id: 'goals', icon: <FiTarget />, label: 'Goals' },
+  { id: 'bills', icon: <FiBell />, label: 'Bills' },
+  { id: 'receipts', icon: <FiUpload />, label: 'Receipts' },
+  { id: 'reports', icon: <FiFileText />, label: 'Reports' },
 ];
 
 const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
@@ -39,7 +51,7 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
         {/* Logo */}
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">
-            <FiDollarSign size={20} color="white" />
+            <LogoMark size={28} />
           </div>
           <div>
             <h2>ExpenseTracker</h2>
@@ -56,7 +68,6 @@ const Sidebar = ({ activeTab, setActiveTab, mobileOpen, setMobileOpen }) => {
               id={`nav-${item.id}`}
               className={`nav-link ${activeTab === item.id ? 'active' : ''}`}
               onClick={() => handleNav(item.id)}
-              style={{ border: 'none', width: '100%', textAlign: 'left', background: 'none', fontFamily: 'inherit' }}
             >
               {item.icon}
               {item.label}

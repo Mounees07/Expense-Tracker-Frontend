@@ -35,6 +35,7 @@ export const authService = {
   register: (data) => API.post('/auth/register', data),
   login: (data) => API.post('/auth/login', data),
   getMe: () => API.get('/auth/me'),
+  updateTheme: (themePreference) => API.patch('/auth/theme', { themePreference }),
 };
 
 // Expense services
@@ -45,6 +46,16 @@ export const expenseService = {
   delete: (id) => API.delete(`/expenses/${id}`),
   exportCSV: (params) =>
     API.get('/expenses/export', { responseType: 'blob', params }),
+};
+
+export const financeService = {
+  list: (resource, params) => API.get(`/finance/${resource}`, { params }),
+  create: (resource, data) => API.post(`/finance/${resource}`, data),
+  update: (resource, id, data) => API.put(`/finance/${resource}/${id}`, data),
+  delete: (resource, id) => API.delete(`/finance/${resource}/${id}`),
+  insights: () => API.get('/finance/insights'),
+  getMonthlyExpenseTarget: (params) => API.get('/finance/budget-target/monthly', { params }),
+  setMonthlyExpenseTarget: (data) => API.put('/finance/budget-target/monthly', data),
 };
 
 export default API;
