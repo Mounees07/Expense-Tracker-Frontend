@@ -36,16 +36,26 @@ export const authService = {
   login: (data) => API.post('/auth/login', data),
   getMe: () => API.get('/auth/me'),
   updateTheme: (themePreference) => API.patch('/auth/theme', { themePreference }),
+  updateStatementSettings: (statementSchedule) => API.patch('/auth/statement-settings', { statementSchedule }),
+  forgotPassword: (email) => API.post('/auth/forgot-password', { email }),
+  resetPassword: (token, password) => API.post(`/auth/reset-password/${token}`, { password }),
 };
 
 // Expense services
 export const expenseService = {
-  getAll: (params) => API.get('/expenses', { params }),
+  // `signal` (an AbortController's signal) lets callers cancel a stale, still
+  // in-flight request when a newer one starts, preventing out-of-order
+  // responses from overwriting fresher results.
+  getAll: (params, signal) => API.get('/expenses', { params, signal }),
   create: (data) => API.post('/expenses', data),
   update: (id, data) => API.put(`/expenses/${id}`, data),
   delete: (id) => API.delete(`/expenses/${id}`),
   exportCSV: (params) =>
     API.get('/expenses/export', { responseType: 'blob', params }),
+  bulkDelete: (ids) => API.delete('/expenses/bulk', { data: { ids } }),
+  bulkUpdateCategory: (ids, category) => API.patch('/expenses/bulk-category', { ids, category }),
+  transfer: (data) => API.post('/expenses/transfer', data),
+  suggestCategory: (title) => API.get('/expenses/suggest-category', { params: { title } }),
 };
 
 export const financeService = {
@@ -56,6 +66,9 @@ export const financeService = {
   insights: () => API.get('/finance/insights'),
   getMonthlyExpenseTarget: (params) => API.get('/finance/budget-target/monthly', { params }),
   setMonthlyExpenseTarget: (data) => API.put('/finance/budget-target/monthly', data),
+  getBudgetSummary: (params) => API.get('/finance/budgets/summary', { params }),
+  getRecurringSuggestions: () => API.get('/finance/recurring/suggestions'),
+  getForecast: (days) => API.get('/finance/forecast', { params: { days } }),
 };
 
 export default API;

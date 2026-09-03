@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useExpenses } from '../context/ExpenseContext';
-import { FiX, FiSave } from 'react-icons/fi';
+import { FiX, FiSave, FiZap } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import useModalA11y from '../hooks/useModalA11y';
+import { expenseService } from '../services/api';
 
 const CATEGORIES = [
   'Food & Dining', 'Transportation', 'Shopping', 'Entertainment',
@@ -26,6 +28,9 @@ const ExpenseModal = ({ isOpen, onClose, editExpense, onSuccess }) => {
   const [form, setForm] = useState(defaultForm);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [categoryTouched, setCategoryTouched] = useState(false);
+  const [autoDetected, setAutoDetected] = useState(false);
+  const modalRef = useModalA11y(isOpen, onClose);
 
   useEffect(() => {
     if (editExpense) {
@@ -38,11 +43,35 @@ const ExpenseModal = ({ isOpen, onClose, editExpense, onSuccess }) => {
         date: editExpense.date ? new Date(editExpense.date).toISOString().split('T')[0] : defaultForm.date,
         notes: editExpense.notes || '',
       });
+      // Editing an existing expense already has a deliberate category — don't auto-override it.
+      setCategoryTouched(true);
     } else {
       setForm(defaultForm);
+      setCategoryTouched(false);
     }
+    setAutoDetected(false);
     setErrors({});
   }, [editExpense, isOpen]);
+
+  // Debounced category auto-suggestion based on the title, for new/untouched expenses only.
+  useEffect(() => {
+    if (form.type !== 'expense' || categoryTouched || !form.title || form.title.trim().length < 3) {
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await expenseService.suggestCategory(form.title.trim());
+        const suggested = res.data?.category;
+        if (suggested && !categoryTouched) {
+          setForm((f) => ({ ...f, category: suggested }));
+          setAutoDetected(true);
+        }
+      } catch {
+        // Best-effort suggestion only — silently ignore failures.
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.title, form.type, categoryTouched]);
 
   const validate = () => {
     const errs = {};
@@ -57,6 +86,10 @@ const ExpenseModal = ({ isOpen, onClose, editExpense, onSuccess }) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
     if (errors[name]) setErrors((e) => ({ ...e, [name]: null }));
+    if (name === 'category') {
+      setCategoryTouched(true);
+      setAutoDetected(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -87,12 +120,19 @@ const ExpenseModal = ({ isOpen, onClose, editExpense, onSuccess }) => {
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal slide-up">
+      <div
+        className="modal slide-up"
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="expense-modal-title"
+        tabIndex={-1}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">
+          <h3 className="modal-title" id="expense-modal-title">
             {editExpense ? '✏️ Edit Expense' : '➕ Add New Expense'}
           </h3>
-          <button id="modal-close-btn" className="modal-close" onClick={onClose}>
+          <button id="modal-close-btn" className="modal-close" onClick={onClose} aria-label="Close dialog">
             <FiX />
           </button>
         </div>
@@ -188,6 +228,11 @@ const ExpenseModal = ({ isOpen, onClose, editExpense, onSuccess }) => {
                   ))}
                 </select>
                 {errors.category && <div className="form-error">⚠ {errors.category}</div>}
+                {autoDetected && !errors.category && (
+                  <div className="form-hint auto-detect-hint">
+                    <FiZap size={11} /> Auto-detected — change if wrong
+                  </div>
+                )}
               </div>
             )}
 

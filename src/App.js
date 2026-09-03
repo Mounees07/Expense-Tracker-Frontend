@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ExpenseProvider } from './context/ExpenseContext';
 import AuthPage from './pages/AuthPage';
 import DashboardPage from './pages/DashboardPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -70,6 +71,7 @@ const AppRoutes = () => {
           </PublicRoute>
         }
       />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
       <Route
         path="/dashboard"
         element={

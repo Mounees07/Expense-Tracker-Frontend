@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { financeService } from '../services/api';
 import { useExpenses } from '../context/ExpenseContext';
+import { getChartTheme, getTooltipOptions, getScaleOptions } from '../utils/chartTheme';
 import toast from 'react-hot-toast';
 import {
   FiAlertCircle,
@@ -46,6 +47,7 @@ const moduleConfig = {
       { name: 'year', label: 'Year', type: 'number', placeholder: '2026' },
       { name: 'amount', label: 'Budget Amount', type: 'number', placeholder: '12000' },
       { name: 'alertThreshold', label: 'Alert %', type: 'number', placeholder: '80' },
+      { name: 'rolloverEnabled', label: 'Roll Over Unspent', type: 'select', options: ['false', 'true'] },
     ],
     summary: (item) => `${item.category} - ${money(item.amount)} limit`,
   },
@@ -465,7 +467,11 @@ const GenericResourceModule = ({ resource }) => {
             <span />
           </div>
         ) : items.length === 0 ? (
-          <div className="module-empty">No records yet. Create the first one to start tracking.</div>
+          <div className="empty-state empty-state-small">
+            <div className="empty-state-icon"><Icon /></div>
+            <h3>No records yet</h3>
+            <p>Create the first one to start tracking.</p>
+          </div>
         ) : (
           <div className="module-list">
             {items.slice(0, 6).map((item) => (
@@ -481,14 +487,252 @@ const GenericResourceModule = ({ resource }) => {
   );
 };
 
-const ResourceModule = ({ resource }) => {
+const BudgetVsActualChart = ({ darkMode }) => {
+  const theme = getChartTheme(darkMode);
+  const [summary, setSummary] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadSummary = async () => {
+    setLoading(true);
+    try {
+      const res = await financeService.getBudgetSummary();
+      setSummary(res.data.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load budget summary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSummary();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chartData = useMemo(() => ({
+    labels: summary.map((item) => item.category),
+    datasets: [
+      { label: 'Budget', data: summary.map((item) => item.target), backgroundColor: theme.accent, borderRadius: 6 },
+      { label: 'Actual Spend', data: summary.map((item) => item.actual), backgroundColor: theme.danger, borderRadius: 6 },
+    ],
+  }), [summary, theme.accent, theme.danger]);
+
+  return (
+    <section className="finance-panel">
+      <div className="finance-panel-header">
+        <span className="finance-icon"><FiFlag /></span>
+        <div>
+          <h3>Budget vs Actual</h3>
+          <p>How this month's spending compares to each category's budget</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="skeleton-list"><span /><span /><span /></div>
+      ) : summary.length === 0 ? (
+        <div className="empty-state empty-state-small">
+          <div className="empty-state-icon"><FiFlag /></div>
+          <h3>No budgets for this month</h3>
+          <p>Create a budget below to see it compared against actual spending.</p>
+        </div>
+      ) : (
+        <div style={{ height: 280 }}>
+          <Bar
+            data={chartData}
+            options={{
+              maintainAspectRatio: false,
+              plugins: { legend: { labels: { color: theme.textColor } }, tooltip: getTooltipOptions(theme) },
+              scales: getScaleOptions(theme),
+            }}
+          />
+        </div>
+      )}
+    </section>
+  );
+};
+
+const BudgetsModule = ({ darkMode }) => (
+  <div className="finance-grid finance-grid-single">
+    <BudgetVsActualChart darkMode={darkMode} />
+    <GenericResourceModule resource="budgets" />
+  </div>
+);
+
+const RecurringSuggestionsPanel = () => {
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState('');
+
+  const loadSuggestions = async () => {
+    setLoading(true);
+    try {
+      const res = await financeService.getRecurringSuggestions();
+      setSuggestions(res.data.data || []);
+    } catch (err) {
+      // Non-critical nudge feature - fail quietly rather than toast-spamming.
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSuggestions();
+  }, []);
+
+  const dismiss = (title) => {
+    setSuggestions((current) => current.filter((item) => item.title !== title));
+  };
+
+  const addAsRecurring = async (suggestion) => {
+    setAdding(suggestion.title);
+    try {
+      await financeService.create('recurring', {
+        title: suggestion.title,
+        amount: suggestion.amount,
+        type: 'expense',
+        category: suggestion.category,
+        account: 'Cash',
+        frequency: suggestion.frequency,
+        nextRunDate: suggestion.suggestedNextRunDate,
+      });
+      toast.success(`${suggestion.title} added as recurring`);
+      dismiss(suggestion.title);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Unable to add recurring transaction');
+    } finally {
+      setAdding('');
+    }
+  };
+
+  if (loading || suggestions.length === 0) return null;
+
+  return (
+    <section className="finance-panel">
+      <div className="finance-panel-header">
+        <span className="finance-icon"><FiZap /></span>
+        <div>
+          <h3>Detected Patterns</h3>
+          <p>Recurring-looking expenses found in your history</p>
+        </div>
+      </div>
+      <div className="module-list">
+        {suggestions.map((suggestion) => (
+          <article key={suggestion.title} className="module-list-item">
+            <strong>{suggestion.title} &mdash; {money(suggestion.amount)} {suggestion.frequency}</strong>
+            <span>Seen {suggestion.occurrences} times &bull; last on {suggestion.lastDate}</span>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button
+                className="btn btn-primary btn-sm"
+                type="button"
+                disabled={adding === suggestion.title}
+                onClick={() => addAsRecurring(suggestion)}
+              >
+                {adding === suggestion.title ? 'Adding...' : 'Add as recurring'}
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => dismiss(suggestion.title)}>
+                Dismiss
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+const RecurringModule = () => (
+  <div className="finance-grid finance-grid-single">
+    <RecurringSuggestionsPanel />
+    <GenericResourceModule resource="recurring" />
+  </div>
+);
+
+const NotificationsModule = () => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadItems = async () => {
+    setLoading(true);
+    try {
+      const res = await financeService.list('notifications');
+      setItems(res.data.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadItems();
+  }, []);
+
+  const markAsRead = async (item) => {
+    if (item.isRead) return;
+    try {
+      await financeService.update('notifications', item._id || item.id, { isRead: true });
+      setItems((current) =>
+        current.map((entry) => ((entry._id || entry.id) === (item._id || item.id) ? { ...entry, isRead: true } : entry))
+      );
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Unable to update notification');
+    }
+  };
+
+  const config = moduleConfig.notifications;
+  const Icon = config.icon;
+
+  return (
+    <div className="finance-grid finance-grid-single">
+      <section className="finance-panel">
+        <div className="finance-panel-header">
+          <span className="finance-icon"><Icon /></span>
+          <div>
+            <h3>{config.title}</h3>
+            <p>{config.subtitle}</p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="skeleton-list"><span /><span /><span /></div>
+        ) : items.length === 0 ? (
+          <div className="empty-state empty-state-small">
+            <div className="empty-state-icon"><Icon /></div>
+            <h3>No notifications yet</h3>
+            <p>Budget, bill and goal alerts will show up here automatically.</p>
+          </div>
+        ) : (
+          <div className="module-list">
+            {items.map((item) => (
+              <article
+                key={item._id || item.id}
+                className="module-list-item"
+                style={{ cursor: item.isRead ? 'default' : 'pointer', opacity: item.isRead ? 0.65 : 1 }}
+                onClick={() => markAsRead(item)}
+                title={item.isRead ? 'Read' : 'Click to mark as read'}
+              >
+                <strong>{item.title} {!item.isRead && <span style={{ color: 'var(--danger, #ef4444)' }}>&bull;</span>}</strong>
+                <span>{item.message}</span>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+};
+
+const ResourceModule = ({ resource, darkMode }) => {
   if (resource === 'reports') return <ReportsModule />;
+  if (resource === 'budgets') return <BudgetsModule darkMode={darkMode} />;
+  if (resource === 'notifications') return <NotificationsModule />;
+  if (resource === 'recurring') return <RecurringModule />;
   return <GenericResourceModule resource={resource} />;
 };
 
-export const InsightsPanel = () => {
+export const InsightsPanel = ({ darkMode }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const theme = getChartTheme(darkMode);
 
   useEffect(() => {
     financeService.insights()
@@ -501,24 +745,27 @@ export const InsightsPanel = () => {
     labels: ['Income', 'Expenses', 'Savings'],
     datasets: [{
       data: [data?.currentIncome || 0, data?.currentExpense || 0, Math.max(data?.savings || 0, 0)],
-      backgroundColor: ['#10b981', '#ef4444', '#6366f1'],
+      backgroundColor: [theme.success, theme.danger, theme.accent],
       borderWidth: 0,
     }],
-  }), [data]);
+  }), [data, theme.success, theme.danger, theme.accent]);
 
   const trendData = useMemo(() => ({
     labels: ['Income', 'Expenses', 'Savings Rate'],
     datasets: [{
       label: 'Financial Health',
       data: [data?.currentIncome || 0, data?.currentExpense || 0, data?.savingsRate || 0],
-      backgroundColor: '#6366f1',
+      backgroundColor: theme.accent,
       borderRadius: 6,
     }],
-  }), [data]);
+  }), [data, theme.accent]);
 
   if (loading) {
     return <div className="finance-panel"><div className="skeleton-list"><span /><span /><span /></div></div>;
   }
+
+  const hasInsights = (data?.insights || []).length > 0;
+  const hasActivity = (data?.currentIncome || 0) > 0 || (data?.currentExpense || 0) > 0;
 
   return (
     <div className="finance-grid">
@@ -530,11 +777,19 @@ export const InsightsPanel = () => {
             <p>Rule-based insights ready for AI integration</p>
           </div>
         </div>
-        <div className="insight-list">
-          {(data?.insights || []).map((insight) => (
-            <div key={insight} className="insight-card">{insight}</div>
-          ))}
-        </div>
+        {hasInsights ? (
+          <div className="insight-list">
+            {(data?.insights || []).map((insight) => (
+              <div key={insight} className="insight-card">{insight}</div>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state empty-state-small">
+            <div className="empty-state-icon"><FiZap /></div>
+            <h3>No insights yet</h3>
+            <p>Add a few expenses this month and insights will show up here.</p>
+          </div>
+        )}
       </section>
 
       <section className="finance-panel">
@@ -545,37 +800,134 @@ export const InsightsPanel = () => {
             <p>Savings rate: {data?.savingsRate || 0}%</p>
           </div>
         </div>
-        <div className="analytics-grid">
-          <div style={{ height: 240 }}><Doughnut data={chartData} options={{ maintainAspectRatio: false }} /></div>
-          <div style={{ height: 240 }}><Bar data={trendData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false } } }} /></div>
-        </div>
+        {hasActivity ? (
+          <div className="analytics-grid">
+            <div style={{ height: 240 }}>
+              <Doughnut data={chartData} options={{ maintainAspectRatio: false, plugins: { legend: { labels: { color: theme.textColor } }, tooltip: getTooltipOptions(theme) } }} />
+            </div>
+            <div style={{ height: 240 }}>
+              <Bar data={trendData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: getTooltipOptions(theme) }, scales: getScaleOptions(theme) }} />
+            </div>
+          </div>
+        ) : (
+          <div className="empty-state empty-state-small">
+            <div className="empty-state-icon"><FiTrendingUp /></div>
+            <h3>Nothing to show</h3>
+            <p>Once you log income or expenses, your financial health chart appears here.</p>
+          </div>
+        )}
       </section>
     </div>
   );
 };
 
-export const AdvancedAnalytics = () => {
-  const data = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+const ForecastPanel = ({ darkMode }) => {
+  const theme = getChartTheme(darkMode);
+  const [days, setDays] = useState(30);
+  const [forecast, setForecast] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    financeService.getForecast(days)
+      .then((res) => setForecast(res.data.data))
+      .catch(() => toast.error('Failed to load cash-flow forecast'))
+      .finally(() => setLoading(false));
+  }, [days]);
+
+  const chartData = useMemo(() => ({
+    labels: (forecast?.points || []).map((point) => point.date),
     datasets: [
-      { label: 'Income', data: [22000, 24000, 25000, 27000, 26000, 30000], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)' },
-      { label: 'Expenses', data: [12000, 15500, 14000, 17000, 16000, 18000], borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.12)' },
-      { label: 'Savings', data: [10000, 8500, 11000, 10000, 10000, 12000], borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.12)' },
+      {
+        label: 'Projected Balance',
+        data: (forecast?.points || []).map((point) => point.projectedBalance),
+        borderColor: theme.accent,
+        backgroundColor: 'color-mix(in srgb, ' + theme.accent + ' 12%, transparent)',
+        fill: true,
+        tension: 0.3,
+      },
     ],
-  };
+  }), [forecast, theme.accent]);
 
   return (
     <div className="finance-panel">
       <div className="finance-panel-header">
         <span className="finance-icon"><FiTrendingUp /></span>
         <div>
-          <h3>Advanced Analytics</h3>
-          <p>Income vs expense, cash flow, savings growth and budget usage</p>
+          <h3>Cash-Flow Forecast</h3>
+          <p>Projected balance from scheduled recurring transactions, bills and your daily spending run-rate</p>
+        </div>
+        <select
+          className="form-control"
+          style={{ maxWidth: 120, marginLeft: 'auto' }}
+          value={days}
+          onChange={(event) => setDays(Number(event.target.value))}
+        >
+          <option value={30}>30 days</option>
+          <option value={60}>60 days</option>
+          <option value={90}>90 days</option>
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="skeleton-list"><span /><span /><span /></div>
+      ) : (
+        <>
+          <p style={{ marginBottom: 12 }}>
+            Current balance: <strong>{money(forecast?.currentBalance)}</strong>
+            {' '}&rarr; Projected in {days} days: <strong>{money(forecast?.endingBalance)}</strong>
+          </p>
+          <div style={{ height: 300 }}>
+            <Line
+              data={chartData}
+              options={{
+                maintainAspectRatio: false,
+                responsive: true,
+                plugins: { legend: { labels: { color: theme.textColor } }, tooltip: getTooltipOptions(theme) },
+                scales: getScaleOptions(theme),
+              }}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export const AdvancedAnalytics = ({ darkMode }) => {
+  const theme = getChartTheme(darkMode);
+  const data = {
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    datasets: [
+      { label: 'Income', data: [22000, 24000, 25000, 27000, 26000, 30000], borderColor: theme.success, backgroundColor: 'color-mix(in srgb, ' + theme.success + ' 12%, transparent)' },
+      { label: 'Expenses', data: [12000, 15500, 14000, 17000, 16000, 18000], borderColor: theme.danger, backgroundColor: 'color-mix(in srgb, ' + theme.danger + ' 12%, transparent)' },
+      { label: 'Savings', data: [10000, 8500, 11000, 10000, 10000, 12000], borderColor: theme.accent, backgroundColor: 'color-mix(in srgb, ' + theme.accent + ' 12%, transparent)' },
+    ],
+  };
+
+  return (
+    <div className="finance-grid finance-grid-single">
+      <div className="finance-panel">
+        <div className="finance-panel-header">
+          <span className="finance-icon"><FiTrendingUp /></span>
+          <div>
+            <h3>Advanced Analytics</h3>
+            <p>Income vs expense, cash flow, savings growth and budget usage</p>
+          </div>
+        </div>
+        <div style={{ height: 360 }}>
+          <Line
+            data={data}
+            options={{
+              maintainAspectRatio: false,
+              responsive: true,
+              plugins: { legend: { labels: { color: theme.textColor } }, tooltip: getTooltipOptions(theme) },
+              scales: getScaleOptions(theme),
+            }}
+          />
         </div>
       </div>
-      <div style={{ height: 360 }}>
-        <Line data={data} options={{ maintainAspectRatio: false, responsive: true }} />
-      </div>
+      <ForecastPanel darkMode={darkMode} />
     </div>
   );
 };

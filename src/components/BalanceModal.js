@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useExpenses } from '../context/ExpenseContext';
 import { FiX, FiCheck } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import useModalA11y from '../hooks/useModalA11y';
 
 const BalanceModal = ({ isOpen, onClose, onSuccess }) => {
   const { addExpense } = useExpenses();
@@ -11,6 +12,7 @@ const BalanceModal = ({ isOpen, onClose, onSuccess }) => {
     'KVB': '',
     'Cash': '',
   });
+  const modalRef = useModalA11y(isOpen, onClose);
 
   const handleChange = (e) => {
     setBalances({ ...balances, [e.target.name]: e.target.value });
@@ -47,10 +49,18 @@ const BalanceModal = ({ isOpen, onClose, onSuccess }) => {
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal slide-up" style={{ maxWidth: 400 }}>
+      <div
+        className="modal slide-up"
+        style={{ maxWidth: 400 }}
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="balance-modal-title"
+        tabIndex={-1}
+      >
         <div className="modal-header">
-          <h3 className="modal-title">🏦 Set In-Hand Balances</h3>
-          <button className="modal-close" onClick={onClose}><FiX /></button>
+          <h3 className="modal-title" id="balance-modal-title">🏦 Set In-Hand Balances</h3>
+          <button className="modal-close" onClick={onClose} aria-label="Close dialog"><FiX /></button>
         </div>
 
         <div style={{ marginBottom: 20, fontSize: 13, color: 'var(--text-muted)' }}>

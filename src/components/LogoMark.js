@@ -27,8 +27,8 @@ const LogoMark = ({ size = 28 }) => (
     />
     <defs>
       <linearGradient id="expenseTrackerAccent" x1="30" y1="28" x2="39" y2="39" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#6366f1" />
-        <stop offset="1" stopColor="#8b5cf6" />
+        <stop style={{ stopColor: 'var(--accent-secondary)' }} />
+        <stop offset="1" style={{ stopColor: 'var(--accent-primary)' }} />
       </linearGradient>
     </defs>
   </svg>

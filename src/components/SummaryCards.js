@@ -1,13 +1,32 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useExpenses } from '../context/ExpenseContext';
-import { FiTrendingUp, FiShoppingBag, FiCalendar, FiActivity } from 'react-icons/fi';
+import { FiTrendingUp, FiShoppingBag, FiCalendar, FiActivity, FiArrowUp, FiArrowDown } from 'react-icons/fi';
 
 const formatAmount = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
 
+const Trend = ({ changePercent, invert }) => {
+  if (changePercent === null || changePercent === undefined || Number.isNaN(changePercent)) return null;
+  const isUp = changePercent > 0;
+  const isFlat = changePercent === 0;
+  // For a spend metric, "up" is bad (invert=true) so its color meaning flips.
+  const isGood = isFlat ? null : invert ? !isUp : isUp;
+  const cls = isFlat ? 'stat-trend-flat' : isGood ? 'stat-trend-up' : 'stat-trend-down';
+  return (
+    <span className={`stat-trend ${cls}`}>
+      {!isFlat && (isUp ? <FiArrowUp /> : <FiArrowDown />)}
+      {Math.abs(changePercent)}% vs last month
+    </span>
+  );
+};
+
 const SummaryCards = () => {
-  const { summary, loading } = useExpenses();
+  const { summary, loading, insights, fetchInsights } = useExpenses();
   const { totalAmount = 0, totalBalance = 0, totalIncome = 0, accountBalances = {} } = summary;
+
+  useEffect(() => {
+    fetchInsights();
+  }, [fetchInsights]);
 
   const cards = [
     {
@@ -18,6 +37,7 @@ const SummaryCards = () => {
       sub: `${formatAmount(totalIncome)} In / ${formatAmount(totalAmount)} Out`,
       className: 'stat-card stat-card-1',
       iconComp: <FiTrendingUp />,
+      trend: insights ? <Trend changePercent={insights.expenseChange} invert /> : null,
     },
     {
       id: 'stat-sbi',
@@ -61,8 +81,10 @@ const SummaryCards = () => {
     return (
       <div className="stat-grid">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="stat-card stat-card-1" style={{ animation: 'pulse 1.5s ease infinite' }}>
-            <div style={{ height: 80 }} />
+          <div key={i} className="stat-card stat-card-skeleton">
+            <div className="stat-skeleton-icon" />
+            <div className="stat-skeleton-line stat-skeleton-line-lg" />
+            <div className="stat-skeleton-line stat-skeleton-line-sm" />
           </div>
         ))}
       </div>
@@ -74,13 +96,14 @@ const SummaryCards = () => {
       {cards.map((card) => (
         <div key={card.id} id={card.id} className={card.className}>
           <div className="stat-icon">{card.icon}</div>
-          <div className="stat-value" style={{ fontSize: card.id === 'stat-top-cat' ? '18px' : '28px' }}>
+          <div className="stat-value">
             {card.value}
           </div>
           <div className="stat-label">{card.label}</div>
           <div className="sub-text">
             {card.sub}
           </div>
+          {card.trend}
         </div>
       ))}
     </div>

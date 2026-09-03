@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useExpenses } from '../context/ExpenseContext';
 import ExpenseModal from './ExpenseModal';
 import BalanceModal from './BalanceModal';
+import TransferModal from './TransferModal';
 import {
-  FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiFilter,
+  FiPlus, FiSearch, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight, FiFilter, FiRepeat,
+  FiCopy, FiAlertTriangle,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -46,13 +48,20 @@ const createMonthOptions = () => {
 const MONTH_OPTIONS = createMonthOptions();
 
 const ExpenseTable = () => {
-  const { expenses, pagination, loading, filters, setFilters, fetchExpenses, deleteExpense } = useExpenses();
+  const {
+    expenses, pagination, loading, filters, setFilters, fetchExpenses, deleteExpense,
+    bulkDeleteExpenses, bulkRecategorize,
+  } = useExpenses();
   const [modalOpen, setModalOpen] = useState(false);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [editExpense, setEditExpense] = useState(null);
   const [searchInput, setSearchInput] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [recategorizeOpen, setRecategorizeOpen] = useState(false);
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
 
   const doFetch = useCallback((params = {}) => {
     fetchExpenses({ page: currentPage, ...params });
@@ -61,6 +70,11 @@ const ExpenseTable = () => {
   useEffect(() => {
     doFetch();
   }, [filters, currentPage]); // eslint-disable-line
+
+  // Clear row selection whenever the underlying list changes (new page/filter/refetch)
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [expenses]);
 
   // Debounced search
   useEffect(() => {
@@ -106,6 +120,40 @@ const ExpenseTable = () => {
 
   const onSuccess = () => { doFetch({ page: 1 }); setCurrentPage(1); };
 
+  const toggleSelectAll = () => {
+    if (selectedIds.length === expenses.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(expenses.map((e) => e._id));
+    }
+  };
+
+  const toggleSelectRow = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      await bulkDeleteExpenses(selectedIds);
+      setSelectedIds([]);
+      doFetch();
+    } catch {
+      toast.error('Failed to delete selected expenses');
+    }
+    setBulkDeleteConfirm(false);
+  };
+
+  const handleBulkRecategorize = async (category) => {
+    try {
+      await bulkRecategorize(selectedIds, category);
+      setSelectedIds([]);
+      doFetch();
+    } catch {
+      toast.error('Failed to update selected expenses');
+    }
+    setRecategorizeOpen(false);
+  };
+
   const pages = Array.from({ length: pagination.pages }, (_, i) => i + 1);
   const selectedMonthValue = `${filters.year}-${filters.month}`;
   const selectedMonthLabel = MONTH_OPTIONS.find((option) => option.value === selectedMonthValue)?.label || 'Selected month';
@@ -113,32 +161,33 @@ const ExpenseTable = () => {
   return (
     <div>
       {/* Filters Bar */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div className="filters-bar" style={{ marginBottom: 0, display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div className="card expense-filters-card">
+        <div className="filters-bar">
           {/* Search */}
-          <div className="search-input-wrapper" style={{ flex: '1 1 250px' }}>
+          <div className="search-input-wrapper expense-search-wrap">
             <FiSearch className="search-icon" />
             <input
               id="expense-search"
               className="form-control search-input"
               placeholder="Search expenses..."
+              aria-label="Search expenses"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <div className="expense-filters-actions">
             {/* Category Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-input)', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1.5px solid var(--border-input)', transition: 'all var(--transition-fast)' }}>
+            <div className="category-filter-wrap">
               <FiFilter size={14} color="var(--text-muted)" />
               <select
                 id="category-filter"
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '13px' }}
+                className="category-filter-select"
                 value={filters.category}
                 onChange={(e) => handleCategoryFilter(e.target.value)}
               >
                 {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat} style={{ background: 'var(--bg-card)' }}>{cat}</option>
+                  <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
@@ -146,8 +195,7 @@ const ExpenseTable = () => {
             {/* Month/Year filter */}
             <select
               id="month-filter"
-              className="form-control"
-              style={{ width: 'auto', minWidth: '150px', cursor: 'pointer', fontSize: '13px' }}
+              className="form-control filter-select"
               value={selectedMonthValue}
               onChange={(e) => handleMonthFilter(e.target.value)}
             >
@@ -156,16 +204,72 @@ const ExpenseTable = () => {
               ))}
             </select>
 
-            <button id="set-balance-btn" className="btn btn-secondary" onClick={() => setBalanceModalOpen(true)} style={{ padding: '10px 20px', border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}>
+            <button id="set-balance-btn" className="btn btn-secondary" onClick={() => setBalanceModalOpen(true)}>
               🏦 Set Balances
             </button>
-            <button id="add-expense-btn" className="btn btn-primary" onClick={handleAddNew} style={{ padding: '10px 20px' }}>
+            <button id="transfer-btn" className="btn btn-secondary" onClick={() => setTransferModalOpen(true)}>
+              <FiRepeat size={16} />
+              Transfer
+            </button>
+            <button id="add-expense-btn" className="btn btn-primary" onClick={handleAddNew}>
               <FiPlus size={16} />
               Add Transaction
             </button>
           </div>
         </div>
       </div>
+
+      {/* Bulk action bar */}
+      {selectedIds.length > 0 && (
+        <div
+          className="card"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 16px', marginBottom: 12, gap: 12, flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontWeight: 600, fontSize: 14 }}>{selectedIds.length} selected</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
+            <div style={{ position: 'relative' }}>
+              <button
+                id="bulk-recategorize-btn"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setRecategorizeOpen((o) => !o)}
+              >
+                Recategorize ▾
+              </button>
+              {recategorizeOpen && (
+                <div
+                  className="card"
+                  style={{
+                    position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 20,
+                    minWidth: 180, maxHeight: 260, overflowY: 'auto', padding: 6,
+                  }}
+                >
+                  {CATEGORIES.filter((c) => c !== 'All').map((cat) => (
+                    <button
+                      key={cat}
+                      className="btn"
+                      style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '6px 8px' }}
+                      onClick={() => handleBulkRecategorize(cat)}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              id="bulk-delete-btn"
+              className="btn btn-danger btn-sm"
+              onClick={() => setBulkDeleteConfirm(true)}
+            >
+              <FiTrash2 size={13} />
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="card">
@@ -197,6 +301,14 @@ const ExpenseTable = () => {
               <table>
                 <thead>
                   <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all expenses on this page"
+                        checked={expenses.length > 0 && selectedIds.length === expenses.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
                     <th>#</th>
                     <th>Title</th>
                     <th>Category</th>
@@ -210,41 +322,53 @@ const ExpenseTable = () => {
                 <tbody>
                   {expenses.map((exp, idx) => (
                     <tr key={exp._id} className="fade-in">
-                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${exp.title}`}
+                          checked={selectedIds.includes(exp._id)}
+                          onChange={() => toggleSelectRow(exp._id)}
+                        />
+                      </td>
+                      <td className="table-row-index">
                         {(currentPage - 1) * pagination.limit + idx + 1}
                       </td>
                       <td>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{exp.title}</span>
+                        <span className="expense-title-text">{exp.title}</span>
+                        {exp.isDuplicate && (
+                          <span className="anomaly-flag anomaly-duplicate" title="Possible duplicate — a similar expense exists nearby in date, title and amount">
+                            <FiCopy size={12} />
+                          </span>
+                        )}
                       </td>
                       <td>
                         <span className={`badge category-badge ${categoryClass[exp.category] || 'cat-other'}`}>
                           {exp.category}
                         </span>
                       </td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{exp.paymentMethod || 'Cash'}</td>
-                      <td style={{ color: 'var(--text-secondary)' }}>{formatDate(exp.date)}</td>
+                      <td className="table-cell-secondary">{exp.paymentMethod || 'Cash'}</td>
+                      <td className="table-cell-secondary">{formatDate(exp.date)}</td>
                       <td>
-                        <span 
-                          className="amount-text" 
-                          style={{ 
-                            fontSize: 14, 
-                            color: exp.type === 'income' ? '#10b981' : 'var(--text-primary)',
-                            fontWeight: exp.type === 'income' ? 700 : 500
-                          }}
-                        >
+                        <span className={`amount-text ${exp.type === 'income' ? 'amount-income' : 'amount-expense'}`}>
                           {exp.type === 'income' ? '+' : '-'}{formatAmount(exp.amount)}
                         </span>
+                        {exp.isUnusualAmount && (
+                          <span className="anomaly-flag anomaly-unusual" title="Unusually high for this category compared to your average spend">
+                            <FiAlertTriangle size={12} />
+                          </span>
+                        )}
                       </td>
-                      <td style={{ color: 'var(--text-muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td className="table-cell-notes">
                         {exp.notes || '—'}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div className="table-actions">
                           <button
                             id={`edit-btn-${exp._id}`}
                             className="btn btn-secondary btn-icon btn-sm"
                             onClick={() => handleEdit(exp)}
                             title="Edit"
+                            aria-label={`Edit ${exp.title}`}
                           >
                             <FiEdit2 size={13} />
                           </button>
@@ -253,6 +377,7 @@ const ExpenseTable = () => {
                             className="btn btn-danger btn-icon btn-sm"
                             onClick={() => setDeleteConfirm(exp._id)}
                             title="Delete"
+                            aria-label={`Delete ${exp.title}`}
                           >
                             <FiTrash2 size={13} />
                           </button>
@@ -311,24 +436,57 @@ const ExpenseTable = () => {
         onSuccess={onSuccess}
       />
 
-      {/* Delete Confirm Modal */}
-      {deleteConfirm && (
-        <div className="modal-overlay">
-          <div className="modal slide-up" style={{ maxWidth: 380 }}>
-            <div style={{ textAlign: 'center', padding: '8px 0' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🗑️</div>
-              <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Delete Expense?</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>
+      {/* Transfer Modal */}
+      <TransferModal
+        isOpen={transferModalOpen}
+        onClose={() => setTransferModalOpen(false)}
+        onSuccess={onSuccess}
+      />
+
+      {/* Bulk Delete Confirm Modal */}
+      {bulkDeleteConfirm && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setBulkDeleteConfirm(false)}>
+          <div className="modal slide-up delete-confirm-modal" role="dialog" aria-modal="true" aria-label="Confirm delete selected expenses">
+            <div className="delete-confirm-body">
+              <div className="delete-confirm-icon">🗑️</div>
+              <h3 className="delete-confirm-title">Delete {selectedIds.length} Expense{selectedIds.length !== 1 ? 's' : ''}?</h3>
+              <p className="delete-confirm-text">
                 This action cannot be undone.
               </p>
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setDeleteConfirm(null)}>
+              <div className="delete-confirm-actions">
+                <button className="btn btn-secondary" onClick={() => setBulkDeleteConfirm(false)}>
+                  Cancel
+                </button>
+                <button
+                  id="confirm-bulk-delete-btn"
+                  className="btn btn-danger delete-confirm-btn"
+                  onClick={handleBulkDelete}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirm Modal */}
+      {deleteConfirm && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setDeleteConfirm(null)}>
+          <div className="modal slide-up delete-confirm-modal" role="dialog" aria-modal="true" aria-label="Confirm delete expense">
+            <div className="delete-confirm-body">
+              <div className="delete-confirm-icon">🗑️</div>
+              <h3 className="delete-confirm-title">Delete Expense?</h3>
+              <p className="delete-confirm-text">
+                This action cannot be undone.
+              </p>
+              <div className="delete-confirm-actions">
+                <button className="btn btn-secondary" onClick={() => setDeleteConfirm(null)}>
                   Cancel
                 </button>
                 <button
                   id="confirm-delete-btn"
-                  className="btn btn-danger"
-                  style={{ flex: 1, background: 'var(--danger)', color: 'white' }}
+                  className="btn btn-danger delete-confirm-btn"
                   onClick={() => handleDelete(deleteConfirm)}
                 >
                   Delete

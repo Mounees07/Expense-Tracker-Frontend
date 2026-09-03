@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { expenseService } from '../services/api';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { expenseService, financeService } from '../services/api';
 import toast from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -38,8 +38,28 @@ export const ExpenseProvider = ({ children }) => {
   const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1, limit: 10 });
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ category: 'All', search: '', ...getCurrentMonthFilters() });
+  const [insights, setInsights] = useState(null);
+  const fetchControllerRef = useRef(null);
+
+  const fetchInsights = useCallback(async () => {
+    try {
+      const res = await financeService.insights();
+      setInsights(res.data.data);
+    } catch {
+      // insights are a supplementary metric; failing silently avoids
+      // interrupting the primary expense-list experience
+    }
+  }, []);
 
   const fetchExpenses = useCallback(async (params = {}) => {
+    // Cancel any still in-flight fetch so a slower, stale response can't
+    // overwrite the results of a newer search/filter request.
+    if (fetchControllerRef.current) {
+      fetchControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
+
     setLoading(true);
     try {
       const mergedParams = { ...filters, ...params };
@@ -48,14 +68,19 @@ export const ExpenseProvider = ({ children }) => {
       if (!mergedParams.search) delete mergedParams.search;
       if (!mergedParams.month) delete mergedParams.month;
 
-      const res = await expenseService.getAll(mergedParams);
+      const res = await expenseService.getAll(mergedParams, controller.signal);
       setExpenses(res.data.data);
       setSummary(res.data.summary);
       setPagination(res.data.pagination);
     } catch (err) {
+      if (err.code === 'ERR_CANCELED' || err.name === 'CanceledError' || err.name === 'AbortError') {
+        return; // a newer request superseded this one; nothing to report
+      }
       toast.error(err.response?.data?.message || 'Failed to load expenses');
     } finally {
-      setLoading(false);
+      if (fetchControllerRef.current === controller) {
+        setLoading(false);
+      }
     }
   }, [filters]);
 
@@ -74,6 +99,24 @@ export const ExpenseProvider = ({ children }) => {
   const deleteExpense = useCallback(async (id) => {
     await expenseService.delete(id);
     toast.success('Expense deleted');
+  }, []);
+
+  const bulkDeleteExpenses = useCallback(async (ids) => {
+    const res = await expenseService.bulkDelete(ids);
+    toast.success(res.data.message || 'Expenses deleted');
+    return res.data;
+  }, []);
+
+  const bulkRecategorize = useCallback(async (ids, category) => {
+    const res = await expenseService.bulkUpdateCategory(ids, category);
+    toast.success(res.data.message || 'Expenses updated');
+    return res.data;
+  }, []);
+
+  const createTransfer = useCallback(async (data) => {
+    const res = await expenseService.transfer(data);
+    toast.success('Transfer completed');
+    return res.data;
   }, []);
 
   const exportCSV = useCallback(async (params = {}) => {
@@ -180,8 +223,9 @@ export const ExpenseProvider = ({ children }) => {
 
   return (
     <ExpenseContext.Provider value={{
-      expenses, summary, pagination, loading, filters,
-      setFilters, fetchExpenses, addExpense, updateExpense, deleteExpense, exportCSV, exportPDF
+      expenses, summary, pagination, loading, filters, insights,
+      setFilters, fetchExpenses, fetchInsights, addExpense, updateExpense, deleteExpense,
+      bulkDeleteExpenses, bulkRecategorize, createTransfer, exportCSV, exportPDF
     }}>
       {children}
     </ExpenseContext.Provider>
