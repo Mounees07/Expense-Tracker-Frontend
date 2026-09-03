@@ -1692,19 +1692,24 @@ tbody td {
     transition: transform var(--transition-base);
     align-items: stretch;
     overflow: hidden;
+    /* dvh tracks the actual visible height on mobile (URL bar in/out) so the
+       nav + user footer always fit; 100vh above is the fallback. */
+    height: 100dvh;
   }
 
   .sidebar.open {
     transform: translateX(0);
     width: 260px;
     box-shadow: var(--shadow-lg);
-    overflow: visible;
   }
 
   /* On mobile the slide-out sidebar shows labels since space isn't constrained */
-  .sidebar.open .sidebar-logo { justify-content: flex-start; padding: var(--space-6) var(--space-5); gap: var(--space-3); border-bottom: 1px solid var(--border-color); overflow: visible; }
+  .sidebar.open .sidebar-logo { justify-content: flex-start; padding: var(--space-6) var(--space-5); gap: var(--space-3); border-bottom: 1px solid var(--border-color); overflow: visible; flex-shrink: 0; }
   .sidebar.open .sidebar-logo-text { display: block; }
-  .sidebar.open .sidebar-nav { align-items: stretch; padding: var(--space-4) var(--space-3); overflow: visible; }
+  /* min-height:0 lets this flex child shrink below its content height so the
+     nav list actually scrolls when it's taller than the drawer. Tooltips are
+     hidden in the open drawer, so clipping overflow-x here is fine. */
+  .sidebar.open .sidebar-nav { align-items: stretch; padding: var(--space-4) var(--space-3); min-height: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
   .sidebar.open .nav-link { width: 100%; height: auto; justify-content: flex-start; padding: var(--space-3); gap: var(--space-3); }
   .sidebar.open .nav-link .nav-label { display: inline; }
   .sidebar.open .nav-tooltip { display: none; }
