@@ -25,10 +25,13 @@ const STROKE = 14;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 const BudgetGauge = () => {
-  const { filters, summary } = useExpenses();
-  const { categoryBreakdown = {} } = summary;
+  const { filters } = useExpenses();
   const [targetData, setTargetData] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Month-scoped breakdown from the target endpoint, not the all-time
+  // summary — so the category list matches the gauge's selected month.
+  const categoryBreakdown = targetData?.categoryBreakdown || {};
 
   const month = Number(filters.month || new Date().getMonth() + 1);
   const year = Number(filters.year || new Date().getFullYear());
